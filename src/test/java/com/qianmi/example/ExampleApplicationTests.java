@@ -28,7 +28,7 @@ public class ExampleApplicationTests {
      * 并发十个线程，去跑100个任务
      */
     @Test
-    public void batchsyncTask() throws InterruptedException {
+    public void batchSyncTask() throws InterruptedException {
 
         List<Runnable> tasks = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
