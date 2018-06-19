@@ -28,7 +28,7 @@ public class TaskMQReceiver {
     public void receiveMessage(String message) {
         LOGGER.info("Received <" + message + ">");
         try {
-            Thread.sleep(random.nextInt(100));
+            Thread.sleep(random.nextInt(300));
             //模拟隔一段时间再给返回
             LOGGER.info("Task done");
             rabbitTemplate.convertAndSend("result", String.format("%s|done", message));
