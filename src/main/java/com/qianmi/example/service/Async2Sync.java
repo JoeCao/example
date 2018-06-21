@@ -1,5 +1,8 @@
 package com.qianmi.example.service;
 
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
@@ -11,6 +14,8 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 
 /**
  * @author 曹祖鹏 OF506
@@ -25,6 +30,7 @@ public class Async2Sync {
     RabbitTemplate rabbitTemplate;
     private String MESSAGE_SPLITTER = "_";
     private ConcurrentHashMap<String, CountDownLatch> taskPool = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, String> tempResult = new ConcurrentHashMap<>();
 
     public void asyncTask() {
         //生成一个唯一key代表任务
@@ -47,9 +53,42 @@ public class Async2Sync {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        //获得结果
+        String result = tempResult.remove(uuid);
+        LOGGER.info("获得结果 {}", result);
         //做其他的事情，比如插入数据库之类的
 
 
+    }
+
+    /**
+     * 使用guava的ListenFuture将结果封装到Future的返回值中
+     * 和上面的对比来看，封装性会更好一些
+     * 但是带来了更多的线程消耗
+     */
+    public void promiseTaskWithResult() {
+        //生成一个唯一key代表任务
+        String uuid = UUID.randomUUID().toString();
+        String task = "随便什么代表任务啦";
+
+        ListeningExecutorService service =
+                MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(5));
+        CountDownLatch doneSignal = new CountDownLatch(1);
+        //将任务加入pool中，等待notify
+        taskPool.put(uuid, doneSignal);
+
+        ListenableFuture<String> future = service.submit(() -> {
+            rabbitTemplate.convertAndSend("task", uuid + MESSAGE_SPLITTER + task);
+            doneSignal.await();
+            String result = tempResult.remove(uuid);
+            return result;
+        });
+
+        try {
+            LOGGER.info("获得结果 {}", future.get());
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
     }
 
     @RabbitHandler
@@ -60,6 +99,8 @@ public class Async2Sync {
         //获取返回的taskid
         LOGGER.info("taskid is {}", rets[0]);
         if (taskPool.containsKey(rets[0])) {
+            //将结果返回
+            tempResult.put(rets[0], message);
             CountDownLatch countDownLatch = taskPool.remove(rets[0]);
             countDownLatch.countDown();
         }

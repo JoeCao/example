@@ -23,6 +23,10 @@ public class ExampleApplicationTests {
         async2Sync.asyncTask();
     }
 
+    @Test
+    public void promiseTask() {
+        async2Sync.promiseTaskWithResult();
+    }
 
     /**
      * 并发十个线程，去跑100个任务
