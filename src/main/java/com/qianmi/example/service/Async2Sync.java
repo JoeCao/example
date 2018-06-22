@@ -1,8 +1,6 @@
 package com.qianmi.example.service;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
@@ -14,7 +12,6 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
 /**
@@ -83,12 +80,25 @@ public class Async2Sync {
             String result = tempResult.remove(uuid);
             return result;
         });
+        CountDownLatch latch = new CountDownLatch(1);
+        Futures.addCallback(future, new FutureCallback<String>() {
+            @Override
+            public void onSuccess(String result) {
+                LOGGER.info("获得结果 {}", result);
+                latch.countDown();
+            }
 
+            @Override
+            public void onFailure(Throwable t) {
+                LOGGER.error("error", t);
+            }
+        });
         try {
-            LOGGER.info("获得结果 {}", future.get());
-        } catch (InterruptedException | ExecutionException e) {
+            latch.await();
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
+
     }
 
     @RabbitHandler
